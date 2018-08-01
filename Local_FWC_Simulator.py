@@ -62,12 +62,13 @@ class Local_FWC_Simulator:
         e = ep
 
         if isInit == True:
-            k1 = k
-            k2 = k
+            k1 = k % 100
+            k2 = k % 200
+            e = np.array([0, 0])
         else:
             k1 = k % 100  # n = 100 일 때 #1 entity maintenance event
             k2 = k % 200  # n = 200 일 때 #1 entity maintenance event
-        eta_k = np.array([k1, k2])
+        eta_k = np.array([[k1], [k2]])
 
         psi = np.array([u1, u2, v1, v2, v3, v4, v5, v6, k1, k2])
         y = u.dot(self.A) + v.dot(self.C) + np.sum(eta_k * self.d, axis=0) + e
@@ -93,10 +94,18 @@ class Local_FWC_Simulator:
         return self.PlsWindow
 
     def plt_show1(self, n, y_act, y_prd):
-        plt.plot(np.arange(1, n + 1), y_act, 'rx--', y_prd, 'bx--', lw=2, ms=10, mew=2)
+        plt.plot(np.arange(n), y_act, 'rx--', y_prd, 'bx--', lw=2, ms=5, mew=2)
         plt.xticks(np.arange(0, n + 1, 50))
         plt.xlabel('Run No.')
         plt.ylabel('Actual and Predicted Response (y1)')
+
+    def plt_show2(self, n, y1, y2):
+        plt.figure()
+        plt.plot(np.arange(n), y1, 'bx-', y2, 'gx--', lw=2, ms=5, mew=2)
+        plt.xticks(np.arange(0, n + 1, 5))
+        plt.yticks(np.arange(-1.2, 1.3, 0.2))
+        plt.xlabel('Metrology Run No.(z)')
+        plt.ylabel('e(z)')
 
     def DoE_Run(self, Z, M):
         N = Z * M
@@ -128,12 +137,12 @@ class Local_FWC_Simulator:
         y_prd = pls.predict(V0) + DoE_Mean[idx_start:idx_end]
         y_act = npDoE_Queue[:, idx_start:idx_end]
 
-        print("Init DoE VM Mean squared error: %.3f" % metrics.mean_squared_error(y_act, y_prd))
-        print("Init DoE VM r2 score: %.3f" % metrics.r2_score(y_act, y_prd))
+        print("Init DoE VM Mean squared error: %.3f" % metrics.mean_squared_error(y_act[:,0:1], y_prd[:,0:1]))
+        print("Init DoE VM r2 score: %.3f" % metrics.r2_score(y_act[:,0:1], y_prd[:,0:1]))
 
         self.setDoE_Mean(DoE_Mean)
         self.setPlsWindow(plsWindow)
-#        self.plt_show1(N, y_act[:,0:1], y_prd[:,0:1])
+        # self.plt_show1(N, y_act[:,0:1], y_prd[:,0:1])
     def VM_Run(self, lamda_PLS, Z, M):
         N = Z * M
 
@@ -167,10 +176,11 @@ class Local_FWC_Simulator:
             del plsWindow[0:M]
 
             ez = M_Queue[M - 1][idx_start:idx_end] - M_Queue[M - 1][idx_end:idx_end + 2]
+            print("ez : ", ez)
             ez_Queue.append(ez)
 
             if z == 0:
-                ez = 0
+                ez = np.array([0, 0])
             npM_Queue = np.array(M_Queue)
             npM_Queue[0:M - 1, 0:idx_start] = lamda_PLS * npM_Queue[0:M - 1, 0:idx_start]
             npM_Queue[0:M - 1, idx_start:idx_end] = lamda_PLS * (npM_Queue[0:M - 1, idx_end:idx_end + 2] + 0.5 * ez)
@@ -188,15 +198,15 @@ class Local_FWC_Simulator:
             Y = plsModelData[:, idx_start:idx_end]
 
             self.pls_update(V, Y)
-            ez = M_Queue[M - 1][idx_start:idx_end] - M_Queue[M - 1][idx_end:idx_end + 2]
-            ez_Queue.append(ez)
 
             del M_Queue[0:M]
 
         y_act = np.array(y_act)
         y_prd = np.array(y_prd)
 
-        print("VM Mean squared error: %.3f" % metrics.mean_squared_error(y_act, y_prd))
-        print("VM r2 score: %.3f" % metrics.r2_score(y_act, y_prd))
-
         self.plt_show1(N, y_act[:, 0:1], y_prd[:, 0:1])
+
+        print("VM Mean squared error: %.3f" % metrics.mean_squared_error(y_act[:,0:1], y_prd[:,0:1]))
+        print("VM r2 score: %.3f" % metrics.r2_score(y_act[:,0:1], y_prd[:,0:1]))
+        ez_run = np.array(ez_Queue)
+        self.plt_show2(Z + 1, ez_run[:,0:1], ez_run[:,1:2])
